@@ -1,5 +1,6 @@
 import requests
-import hashlib
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
 CURRENT_VERSION = "1.0"
 
@@ -21,36 +22,48 @@ def check_for_update():
 
     if latest_version > CURRENT_VERSION:
         print("[UPDATE AVAILABLE]")
-        download_update(expected_hash)
+        download_update()
     else:
         print("[NO UPDATE]")
 
-def download_update(expected_hash):
+def download_update():
 
     response = requests.get(
         f"{SERVER_URL}/download"
     )
 
-    firmware = response.text
+    update = response.json()
 
-    firmware_hash = hashlib.sha256(
-        firmware.encode()
-    ).hexdigest()
-    
+    firmware = update["firmware"]
+    signature = bytes.fromhex(update["signature"])
+
     print("\nFirmware received:")
     print(firmware)
 
-    print("SHA-256:", firmware_hash)
+    with open("public_key.pem", "rb") as key_file:
+        public_key = serialization.load_pem_public_key(
+            key_file.read()
+        )
 
-    if firmware_hash == expected_hash:
-        print("[PASS] Firmware integrity verified")
-    else:
-        print("[FAIL] Firmware integrity check failed")
+    try:
+        public_key.verify(
+            signature,
+            firmware.encode(),
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+
+        print("[PASS] Firmware signature verified")
+
+        print("\n[INSTALLING UPDATE]")
+        print("[UPDATE COMPLETE]")
+
+    except Exception:
+        print("[FAIL] Firmware signature verification failed")
         print("[UPDATE REJECTED]")
-        return
-
-    print("\n[INSTALLING UPDATE]")
-    print("[UPDATE COMPLETE]")
 
 check_for_update()
 

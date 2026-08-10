@@ -33,16 +33,26 @@ def check_update():
 
 @app.route("/download", methods=["GET"])
 def download_firmware():
-
     firmware_path = os.path.join(
         os.path.dirname(__file__),
         "firmware.txt"
     )
 
-    with open(firmware_path, "r") as file:
-        data = file.read()
+    signature_path = os.path.join(
+        os.path.dirname(__file__),
+        "firmware.sig"
+    )
 
-    return data
+    with open(firmware_path, "r") as file:
+        firmware_data = file.read()
+
+    with open(signature_path, "rb") as file:
+        signature_data = file.read()
+
+    return jsonify({
+        "firmware": firmware_data,
+        "signature": signature_data.hex()
+    })
     
 if __name__ == "__main__":
     app.run(port=5001)
